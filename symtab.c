@@ -11,14 +11,9 @@ int sym_stack_is_full(void){
 	return top < STACK_MAX - 1 ? FALSE : TRUE;
 }
 
-int push(char *_name, int _type, union_val _value, sym_type _sym){
+int push(symbol *sym){
 	if(!sym_stack_is_full()){
-		symbol new;
-		new.name = _name;
-		new.type = _type;
-		new.value = _value;
-		new.sym = _sym;
-		sym_stack[++top] = new;
+		sym_stack[++top] = *sym;
 		return TRUE;
 	}
 	return FALSE;

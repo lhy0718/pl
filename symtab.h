@@ -4,16 +4,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #define STACK_MAX 1000
-
+typedef void (*funcptr)(void);
 typedef union{
 	int ival;
 	int *iptr;
 	float fval;
 	float *fptr;
 	char *sval;
-	int (*ifunc)(void *);
-	float (*ffunc)(void *);
-	void (*proc)(void *);
+	funcptr funcptr;
 }union_val;
 
 typedef enum{
@@ -24,11 +22,21 @@ typedef enum{
 }sym_type;
 
 typedef struct{
-  char* name;	//if name == null then array element or boolean
-  int type;		//true: not 0, false/int: 0, float: 1, int[n]: 2n, float[n]: 1+2n
-  union_val value;
-  sym_type sym;
+	char* name;	//if name == null then array element or boolean
+	int type;		//true: not 0, false/int: 0, float: 1, int[n]: 2n, float[n]: 1+2n
+	union_val value;
+	sym_type sym;
 }symbol;
+
+struct val_node{
+	char *name;
+	struct val_node *next;
+};
+
+struct sym_node{
+	symbol sym;
+	struct sym_node *next;
+};
 
 typedef enum{
 	_true = -100,
@@ -53,7 +61,7 @@ void init_stack(void);
 
 int sym_stack_is_full(void);
 
-int push (char *, int, union_val, sym_type);
+int push (symbol *);
 
 symbol *pop(void);
 
