@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #define STACK_MAX 1000
+#define INDEX_STACK_MAX 1000
 typedef void (*funcptr)(void);
 typedef union{
 	int ival;
@@ -54,8 +55,10 @@ typedef enum{
 }_type;
 
 
-static symbol sym_stack[STACK_MAX];
+static symbol *sym_stack[STACK_MAX];
+static int index_stack[INDEX_STACK_MAX];
 int top;
+int index_top;
 
 void init_stack(void);
 
@@ -64,6 +67,12 @@ int sym_stack_is_full(void);
 int push (symbol *);
 
 symbol *pop(void);
+
+int index_stack_is_full(void);
+
+int index_push(int);
+
+int index_pop(void);
 
 symbol *search(char *);
 
@@ -74,4 +83,5 @@ char *_typeof_str(symbol *);
 void print_sym(symbol*);
 
 void print_stack(void);
+
 #endif

@@ -5,6 +5,7 @@
 
 void init_stack(void){
 	top = -1;
+	index_top = -1;
 }
 
 int sym_stack_is_full(void){
@@ -13,7 +14,7 @@ int sym_stack_is_full(void){
 
 int push(symbol *sym){
 	if(!sym_stack_is_full()){
-		sym_stack[++top] = *sym;
+		sym_stack[++top] = sym;
 		return TRUE;
 	}
 	return FALSE;
@@ -22,18 +23,36 @@ int push(symbol *sym){
 symbol *pop(void){
 	if(top<0)
 		return NULL;
-	else return &sym_stack[top--];
+	else return sym_stack[top--];
+}
+
+int index_stack_is_full(){
+	return index_top < INDEX_STACK_MAX - 1 ? FALSE : TRUE;
+}
+
+int index_push(int num){
+	if(!index_stack_is_full()){
+		index_stack[++index_top] = num;
+		return TRUE;
+	}
+	return FALSE;	
+}
+
+int index_pop(void){
+	if(index_top<0)
+		return 0;
+	else return index_stack[index_top--];
 }
 
 symbol *search(char *_name){
 	int loop=top;
-	
+
 	if(top<0)
 		return NULL;
 
 	for(; loop>=0; loop--){
-		if(strcmp(sym_stack[loop].name, _name) == 0)
-			return &sym_stack[loop];
+		if(strcmp(sym_stack[loop]->name, _name) == 0)
+			return sym_stack[loop];
 	}
 	return NULL;
 }
@@ -45,11 +64,14 @@ void print_stack(void){
 		return;
 	}
 	for(; loop>=0; loop--){
-		symbol sym = sym_stack[loop];
-		printf("stack %d -> %s : ", loop, sym.name);
-		print_sym(&sym);
+		symbol *sym = sym_stack[loop];
+		printf("stack %d -> %s : ", loop, sym->name);
+		print_sym(sym);
 		printf("\n");
 	}
+	//for(loop=index_top;loop>=0;loop--){
+	//	printf("%d\n", index_stack[loop]);
+	//}
 }
 
 int8_t _typeof(symbol *_sym){
@@ -120,7 +142,7 @@ void print_sym(symbol *sym){
 			return;
 		case _float_arr:
 			arr_size = sym->type / 2;
-			
+
 			printf("[ ");
 			for(loop = 0; loop < arr_size-1; loop++)
 				printf("%f, ", sym->value.fptr[loop]);

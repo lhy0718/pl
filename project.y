@@ -14,7 +14,7 @@
 		statement_name(__VA_ARGS__);\
 	}else{\
 		struct sym_node *new = malloc(sizeof(struct sym_node));\
-		new->sym.sym = _proc;\
+		new->sym.sym = proc;\
 		new->sym.type = -1;\
 		new->sym.value.funcptr = &statement_name;\
 		new->next = NULL;\
@@ -48,14 +48,15 @@
 %locations
 
 %token <sval> ID KW_MAIN KW_FUNC KW_PROC KW_BEGIN KW_END KW_IF KW_THEN KW_ELSE KW_ELIF KW_NOP KW_FOR KW_WHILE KW_RETURN KW_PRINT KW_IN OP_ADD OP_SUB OP_MUL OP_DIV OP_LT OP_LE OP_GT OP_GE OP_EQUAL OP_NOTEQ OP_NEG DL_SMCOLON DL_DOT DL_COMMA DL_ASSIGN DL_LPAREN DL_RPAREN DL_LBRACK DL_RBRACK DL_COLON
-%type <sval> sign
+%type <sval> sign addop multop
 %token <ival> INTEGER KW_INT KW_FLOAT
 %type <ival> type standard_type
 %token <fval> FLOAT
 %type <val_node_ptr> identifier_list
 %type <sym_ptr> term factor variable expression simple_expression subprogram_declaration
-%type <sym_node_ptr> statement print_statement procedure_statement compound_statement if_statement while_statement for_statement declarations statement_list subprogram_head
+%type <sym_node_ptr> statement print_statement procedure_statement compound_statement if_statement while_statement for_statement declarations statement_list subprogram_head parameter_list arguments
 %precedence DL_COLON
+%precedence OP_NEG
 %precedence KW_ELIF
 %precedence KW_ELSE
 %right KW_IN
@@ -84,7 +85,21 @@ subprogram_declarations:
 	;
 
 compound_statement:
-	KW_BEGIN statement_list KW_END
+	KW_BEGIN statement_list KW_END	{
+		int index, loop;
+		symbol *tmp;
+		$$ = $2;
+		index = index_pop();
+		for (loop=0; loop<index; loop++){
+			tmp = pop();
+			_type type = _typeof(tmp);
+			if(type==_func || type==_proc){
+				push(tmp);
+				index_push(1);
+				break;
+			}
+		}
+	}
 	;
 
 type:
@@ -119,7 +134,11 @@ subprogram_declaration:
 		subprogram_declaration_toggle = TRUE;
 	}
 	declarations compound_statement{
+		struct sym_node *tmp;
 		subprogram_declaration_toggle = FALSE;
+		
+		$3->next = $4;
+		$1->next = $3;
 	}
 	;
 
@@ -127,15 +146,16 @@ subprogram_head:
 	KW_FUNC ID arguments DL_COLON standard_type DL_SMCOLON	{
 		
 	}
-	| KW_PROC ID	{
-		struct sym_node *temp;
-		temp = malloc(sizeof(struct sym_node));
-		temp->sym.name = $2;
-		temp->sym.type = 1;
-		temp->sym.sym = proc;
-		push(&temp->sym);
-		$<sym_node_ptr>$ = temp;
-	} arguments DL_SMCOLON
+	| KW_PROC ID arguments DL_SMCOLON	{
+		struct sym_node *tmp;
+		tmp = malloc(sizeof(struct sym_node));
+		tmp->sym.name = $2;
+		tmp->sym.type = 1;
+		tmp->sym.sym = proc;
+		index_push(1);
+		push(&tmp->sym);
+		$$ = tmp;
+	}
 	;
 
 arguments:
@@ -145,23 +165,27 @@ arguments:
 
 parameter_list:
 	identifier_list DL_COLON type	{
-		struct val_node *temp_node;
-		symbol temp_sym;
-		for(temp_node = $1; temp_node; temp_node = temp_node -> next){
+		struct val_node *tmp_node;
+		struct sym_node *tmp_sym_node;
+		int index = 0;
+		symbol tmp_sym;
+		for(tmp_node = $1; tmp_node; tmp_node = tmp_node -> next){
 			if(sym_stack_is_full()){
 				yyerror("Variable stack is full");
 				break;
 			}
-			if(search(temp_node->name)){
-				yyerror(strcat(temp_node->name, " is already declared."));
+			if(search(tmp_node->name)){
+				yyerror(strcat(tmp_node->name, " is already declared."));
 				continue;
 			}
-			temp_sym.name = temp_node->name;	//push internal variable
-			temp_sym.type = $3;
-			temp_sym.sym = var;
-			push(&temp_sym);
-			free(temp_node);
+			tmp_sym.name = tmp_node->name;	//push internal variable
+			tmp_sym.type = $3;
+			tmp_sym.sym = var;
+			index++;
+			push(&tmp_sym);
+			free(tmp_node);
 		}
+		index_push(index);
 	}
 	| identifier_list DL_COLON type DL_SMCOLON parameter_list
 	;
@@ -171,7 +195,7 @@ statement_list:
 		$$ = $1;
 	}
 	| statement DL_SMCOLON statement_list	{
-		$1->next = $2;
+		$1->next = $3;
 		$$ = $1;
 	}
 	;
@@ -194,8 +218,7 @@ statement:
 			else if(_type1 == _float && _type2 == _float_elem)
 				$1->value.fval = *$3->value.fptr;
 			else{
-				char *errmsg = "assigning to diffrent type.";
-				yyerror(errmsg);
+				yyerror_args(5, "'", _typeof_str($1), "' and '", _typeof_str($3), "' is different type.");
 			}
 		}else{
 			$1->value = $3->value;
@@ -205,12 +228,12 @@ statement:
 				free($1);
 		}
 	}
-	| print_statement
-	| procedure_statement
-	| compound_statement
-	| if_statement
-	| while_statement
-	| for_statement
+	| print_statement{$$ = $1;}
+	| procedure_statement{$$ = $1;}
+	| compound_statement{$$ = $1;}
+	| if_statement{$$ = $1;}
+	| while_statement{$$ = $1;}
+	| for_statement{$$ = $1;}
 	| KW_RETURN expression	{
 		
 	}
@@ -219,31 +242,27 @@ statement:
 
 variable:
 	ID										{
-		symbol *null = NULL, *temp;
-		temp = search($1);
-		if(!temp){
-			char *errmsg = strcat($1, " is undeclared.");
-			yyerror(errmsg);
+		symbol *null = NULL, *tmp;
+		tmp = search($1);
+		if(!tmp){
+			yyerror_args(2, $1, " is undeclared.");
 			$$ = null;
-		}else if(temp->sym == var){
-			$$ = temp;	
+		}else if(tmp->sym == var){
+			$$ = tmp;	
 		}else{
-			char *errmsg = strcat($1, " is function.");
-			yyerror(errmsg);
+			yyerror_args(2, $1, " is function.");
 			$$ = null;
 		}
 	}
 	| ID DL_LBRACK expression DL_RBRACK	{
 		symbol *null = NULL, *id, *ret;
 		int arr_size, index_value;
-		char *errmsg;
 		id = search($1);
 		_type _typeof_id = _typeof(id), _typeof_index = _typeof($3);
 
 		switch(_typeof_id){
 			case _NULL:
-				errmsg = strcat($1, " is undeclared.");
-				yyerror(errmsg);
+				yyerror_args(2, $1, " is undeclared.");
 				$$ = null;
 				break;
 
@@ -281,7 +300,7 @@ variable:
 							ret->sym = var;
 							$$ = ret;
 
-							if(!$3->name)				//If index is temporary variable 
+							if(!$3->name)				//If index is tmporary variable 
 								free($3);
 						}
 						break;
@@ -309,22 +328,17 @@ print_statement:
 
 procedure_statement:
 	ID DL_LPAREN actual_parameter_expression DL_RPAREN	{
-		char *errmsg;
-		symbol *temp = search($1);
-		struct sym_node *temp_node;
-		switch(_typeof(temp)){
+		symbol *tmp = search($1);
+		struct sym_node *tmp_node;
+		switch(_typeof(tmp)){
 			case _func:
 			case _proc:
-				for(temp_node = container_of(temp, struct sym_node, sym)->next; temp_node; temp_node = temp_node->next){
-					//temp_node->sym.value.funcptr();
-					printf("adsfasf\n");
-					print_sym(&temp_node->sym);
-					printf("\n");
+				for(tmp_node = container_of(tmp, struct sym_node, sym)->next; tmp_node; tmp_node = tmp_node->next){
+					//tmp_node->sym.value.funcptr();
 				}
 				break;
 			default:
-				errmsg = strcat($1, " is not a function.");
-				yyerror(errmsg);
+				yyerror_args(2, $1, "is not a function.");
 		}
 	}
 	;
@@ -374,7 +388,9 @@ simple_expression:
 	term					{
 		$$ = $1;
 	}
-	| term addop simple_expression
+	| term addop simple_expression{
+		$$ = !strcmp($2, "+") ? sym_add($1, $3) : sym_sub($1, $3);
+	}
 	;
 
 term:
@@ -382,7 +398,7 @@ term:
 		$$ = $1;
 	}
 	| factor multop term	{
-		_type _type1 = _typeof($1), _type2 = _typeof($3); 
+		$$ = !strcmp($2, "*") ? sym_mul($1, $3) : sym_div($1, $3);
 	}	
 	;
 
@@ -406,7 +422,6 @@ factor:
 	| variable				{ $$ = $1; }
 	| procedure_statement	{}
 	| OP_NEG factor			{
-		char *errmsg;
 		_type _typeof_factor = _typeof($2);
 
 		switch(_typeof_factor){
@@ -418,15 +433,12 @@ factor:
 				$2->type = !$2->type ? TRUE : FALSE;
 				break;
 			default:
-				errmsg = strcat(_typeof_str($2), "' is not boolean.");
-				errmsg = strcat("type '", errmsg);
-				yyerror(errmsg);
+				yyerror_args(3, "type '", _typeof_str($2), "' is not boolean.");
 		}
 	}
 	| sign factor			{
 		symbol *ret, *null = NULL;
 		_type _typeof_factor = _typeof($2);
-		char *errmsg;
 		int sign = *$1 == '+' ? 1 : -1;
 		switch(_typeof_factor){
 			case _func:
@@ -435,9 +447,7 @@ factor:
 			case _false:
 			case _int_arr:
 			case _float_arr:
-				errmsg = strcat(_typeof_str($2), "' to unary expression.");
-				errmsg = strcat("Invalid type '", errmsg);
-				yyerror(errmsg);
+				yyerror_args(3, "Invalid type '", _typeof_str($2), "' to unary expression.");
 				$$ = null;
 				break;
 			case _int:
@@ -466,7 +476,7 @@ factor:
 
 		if($2)
 			if(!$2->name)
-				free($2);					//free temporary variable
+				free($2);					//free tmporary variable
 	}
 	;
 

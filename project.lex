@@ -57,6 +57,5 @@ in							{ return KW_IN;			}
 "["							{ yylval.sval = strdup(yytext); return DL_LBRACK;	}
 "]"							{ yylval.sval = strdup(yytext); return DL_RBRACK;	}
 ":"							{ yylval.sval = strdup(yytext); return DL_COLON;	}
-[\/\/].*
 .							{ return strdup(strdup(yytext))[0];		}
 %%
