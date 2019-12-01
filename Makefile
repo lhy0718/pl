@@ -13,8 +13,8 @@ project.tab.c project.tab.h:	project.y
 lex.yy.c:	project.lex project.tab.h
 	$(LEX) project.lex
 
-$(TARGET):	lex.yy.c project.tab.c project.tab.h symtab.c symtab.h
-	$(CC) -o $(TARGET) lex.yy.c project.tab.c symtab.c $(LIBS)
+$(TARGET):	lex.yy.c project.tab.c project.tab.h symtab.c symtab.h functions.c functions.h
+	$(CC) -o $(TARGET) lex.yy.c project.tab.c symtab.c functions.c $(LIBS)
 
 clean:
 	rm project *.tab.* lex.yy.c *.output
