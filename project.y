@@ -89,16 +89,6 @@ compound_statement:
 		int index, loop;
 		symbol *tmp;
 		$$ = $2;
-		index = index_pop();
-		for (loop=0; loop<index; loop++){
-			tmp = pop();
-			_type type = _typeof(tmp);
-			if(type==_func || type==_proc){
-				push(tmp);
-				index_push(1);
-				break;
-			}
-		}
 	}
 	;
 
@@ -137,14 +127,21 @@ subprogram_declaration:
 		struct sym_node *tmp;
 		subprogram_declaration_toggle = FALSE;
 		
-		$3->next = $4;
-		$1->next = $3;
+		//$3->next = $4;
+		//$1->next = $3;
 	}
 	;
 
 subprogram_head:
 	KW_FUNC ID arguments DL_COLON standard_type DL_SMCOLON	{
-		
+		struct sym_node *tmp;
+		tmp = malloc(sizeof(struct sym_node));
+		tmp->sym.name = $2;
+		tmp->sym.type = 1;
+		tmp->sym.sym = proc;
+		index_push(1);
+		push(&tmp->sym);
+		$$ = tmp;
 	}
 	| KW_PROC ID arguments DL_SMCOLON	{
 		struct sym_node *tmp;
@@ -195,14 +192,16 @@ statement_list:
 		$$ = $1;
 	}
 	| statement DL_SMCOLON statement_list	{
-		$1->next = $3;
-		$$ = $1;
+		//$1->next = $3;
+		//$$ = $1;
 	}
 	;
 
 statement:
 	variable DL_ASSIGN expression	{
 		_type _type1 = _typeof($1), _type2 = _typeof($3);
+		if(subprogram_declaration_toggle)
+			break;
 
 		if(!_type1 || !_type2)
 			yyerror("value is invalid");
