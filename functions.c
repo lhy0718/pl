@@ -7,7 +7,7 @@
 void yyerror_args(int num, ...){
 	va_list v;
 	int loop=0;
-	char msg[50];
+	char msg[50] = "";
 	va_start(v, num);
 	for(; loop<num; loop++){
 		strcat(msg, va_arg(v, char *));
